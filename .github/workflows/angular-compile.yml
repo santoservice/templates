@@ -16,7 +16,7 @@ on:
       folder:
         description: 'Folder of project'
         type: string
-        required: true
+        required: false
         default: '.'
 
 jobs:
