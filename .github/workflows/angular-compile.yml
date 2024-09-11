@@ -12,7 +12,12 @@ on:
         description: 'Node Version'
         type: string
         required: true
-        default: '16.x'
+        default: '18.x'
+      folder:
+        description: 'Folder of project'
+        type: string
+        required: true
+        default: '.'
 
 jobs:
   build:
@@ -27,6 +32,10 @@ jobs:
         with:
           node-version: ${{ inputs.nodeVersion }}
 
+      - name: Set directory
+        if: ${{ inputs.folder }} != '.'
+        run: cd ${{ inputs.folder }}
+
       - name: Install Dependencies
         run: yarn install --force
 
@@ -36,7 +45,7 @@ jobs:
           yarn run build --configuration=production --base-href=/${{ inputs.baseHref }}/
           
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@main
         with:
           name: dist
           path: dist
