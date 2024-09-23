@@ -41,15 +41,9 @@ jobs:
 
       #compilando el proyecto
       - name: Build Angular App with baseHref ${{inputs.baseHref}}
-        if: ${{inputs.baseHref}} != '/'
         run: |
           yarn run build --configuration=production --base-href=/${{ inputs.baseHref }}/
-      
-      - name: Build Angular App without baseHref
-        if: ${{inputs.baseHref}} == '/'
-        run: |
-          yarn run build --configuration=production
-          
+ 
       - name: Upload artifact
         uses: actions/upload-artifact@main
         with:
