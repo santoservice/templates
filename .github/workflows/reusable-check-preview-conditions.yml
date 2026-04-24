@@ -1,0 +1,58 @@
+name: Reusable - Check Preview Conditions
+
+# Reusable workflow - Check if a deployment should proceed
+on:
+  workflow_call:
+    inputs:
+      head_ref:
+        description: "Branch name from github.head_ref or github.ref_name"
+        required: true
+        type: string
+      event_name:
+        description: "Event that triggered the workflow"
+        required: true
+        type: string
+      is_draft:
+        description: "Is the PR a draft?"
+        required: true
+        type: string
+    outputs:
+      should-deploy:
+        description: "Whether the deployment should continue"
+        value: ${{ jobs.check-conditions.outputs.should-deploy }}
+
+jobs:
+  check-conditions:
+    name: Check Deploy Conditions
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.check.outputs.result }}
+
+    steps:
+      - name: Check branch and PR status
+        id: check
+        run: |
+          EVENT_NAME="${{ inputs.event_name }}"
+          BRANCH_NAME="${{ inputs.head_ref }}"
+          IS_DRAFT="${{ inputs.is_draft }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "Branch: $BRANCH_NAME"
+          echo "Is Draft: $IS_DRAFT"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+            echo "✅ Conditions met: Manually triggered via workflow_dispatch"
+          elif [[ "$BRANCH_NAME" == copilot/* ]] || [[ "$BRANCH_NAME" == claude/* ]]; then
+            # Check if PR is ready for review (not draft)
+            if [[ "$IS_DRAFT" == "false" ]]; then
+              echo "result=true" >> $GITHUB_OUTPUT
+              echo "✅ Conditions met: AI branch and ready for review"
+            else
+              echo "result=false" >> $GITHUB_OUTPUT
+              echo "⏭️ Skipping: PR is still in draft mode"
+            fi
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping: Not a copilot/ or claude/ branch"
+          fi

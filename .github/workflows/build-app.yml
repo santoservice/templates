@@ -1,0 +1,79 @@
+name: Build App
+
+# Reusable workflow - builds any frontend app in the monorepo.
+on:
+  workflow_call:
+    inputs:
+      build-script:
+        description: "Script name from root package.json (e.g. 'build:landing', 'build:web')"
+        required: true
+        type: string
+      app-name:
+        description: "App name used for artifact naming and dist path (e.g. 'landing', 'web')"
+        required: true
+        type: string
+      environment:
+        description: "Environment name (e.g. 'production', 'preview')"
+        required: true
+        type: string
+      env-file-var-name:
+        description: "Name of the variable in the environment containing the .env content"
+        required: false
+        type: string
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded build artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    name: Build ${{ inputs.app-name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      artifact-name: ${{ steps.artifact-info.outputs.name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        timeout-minutes: ${{ env.PNPM_INSTALL_TIMEOUT }}
+
+      - name: Create .env file
+        if: inputs.env-file-var-name != ''
+        run: |
+          VAR_NAME="${{ inputs.env-file-var-name }}"
+          echo "Creating .env file for ${{ inputs.app-name }} using $VAR_NAME..."
+          # Resolve the variable content from the vars context using its name
+          echo "${{ vars[inputs.env-file-var-name] }}" > apps/${{ inputs.app-name }}/.env
+          # Forzar a Vite a ignorar el archivo .env.local del repo
+          rm -f apps/${{ inputs.app-name }}/.env.local
+          echo "✅ .env file created successfully"
+
+      - name: Build app
+        run: pnpm run ${{ inputs.build-script }}
+        timeout-minutes: ${{ env.PNPM_BUILD_TIMEOUT }}
+
+      - name: Set artifact name
+        id: artifact-info
+        run: echo "name=${{ inputs.app-name }}-dist-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.app-name }}-dist-${{ github.sha }}
+          path: apps/${{ inputs.app-name }}/dist
+          retention-days: 7
