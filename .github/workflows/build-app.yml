@@ -20,6 +20,16 @@ on:
         description: "Name of the variable in the environment containing the .env content"
         required: false
         type: string
+      working-directory:
+        description: "Directory where the app is located (use '.' for root, or 'apps/app-name' for monorepos)"
+        required: false
+        type: string
+        default: '.'
+      artifact-path:
+        description: "Path to the dist/build folder relative to the root (e.g. 'dist' or 'apps/app-name/dist')"
+        required: false
+        type: string
+        default: 'dist'
     outputs:
       artifact-name:
         description: "Name of the uploaded build artifact"
@@ -56,16 +66,18 @@ jobs:
         if: inputs.env-file-var-name != ''
         run: |
           VAR_NAME="${{ inputs.env-file-var-name }}"
-          echo "Creating .env file for ${{ inputs.app-name }} using $VAR_NAME..."
+          DIR="${{ inputs.working-directory }}"
+          echo "Creating .env file for ${{ inputs.app-name }} in $DIR using $VAR_NAME..."
           # Resolve the variable content from the vars context using its name
-          echo "${{ vars[inputs.env-file-var-name] }}" > apps/${{ inputs.app-name }}/.env
+          echo "${{ vars[inputs.env-file-var-name] }}" > $DIR/.env
           # Forzar a Vite a ignorar el archivo .env.local del repo
-          rm -f apps/${{ inputs.app-name }}/.env.local
+          rm -f $DIR/.env.local
           echo "✅ .env file created successfully"
 
       - name: Build app
         run: pnpm run ${{ inputs.build-script }}
-        timeout-minutes: ${{ env.PNPM_BUILD_TIMEOUT }}
+        working-directory: ${{ inputs.working-directory }}
+        timeout-minutes: 10
 
       - name: Set artifact name
         id: artifact-info
@@ -75,5 +87,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.app-name }}-dist-${{ github.sha }}
-          path: apps/${{ inputs.app-name }}/dist
+          path: ${{ inputs.artifact-path }}
           retention-days: 7
