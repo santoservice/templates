@@ -1,0 +1,77 @@
+name: Deploy Cloudflare Worker
+
+# Reusable workflow - deploys a Cloudflare Worker using wrangler deploy.
+# Unlike Pages, Workers compile and upload in a single wrangler command —
+# no artifact step needed.
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory where the Worker app is located (e.g. 'apps/share')"
+        required: true
+        type: string
+      environment:
+        description: "GitHub deployment environment name"
+        required: false
+        type: string
+        default: 'production'
+      pnpm-filter:
+        description: "pnpm --filter value to install only the worker's deps (e.g. '@yolk/share')"
+        required: false
+        type: string
+        default: ''
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
+    outputs:
+      worker-url:
+        description: "Cloudflare Worker deployment URL (workers.dev)"
+        value: ${{ jobs.deploy.outputs.worker-url }}
+
+jobs:
+  deploy:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    outputs:
+      worker-url: ${{ steps.deploy.outputs.deployment-url }}
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          if [ -n "${{ inputs.pnpm-filter }}" ]; then
+            pnpm install --frozen-lockfile --filter "${{ inputs.pnpm-filter }}"
+          else
+            pnpm install --frozen-lockfile
+          fi
+        timeout-minutes: 5
+
+      - name: Deploy Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ${{ inputs.working-directory }}
+          command: deploy
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
